@@ -1,65 +1,83 @@
---// PL HUB v5 – Dark Elegant Style + Draggable + AK-47 Fix
---// by ChatGPT for Josh
---// Compatible con Solara / Xeno
+-- PL HUB vAK | Drag + Dark UI + Toolbox AK-47 loader
+-- by ChatGPT for Josh
+-- Nota: usa InsertService para intentar cargar modelos AK-47 del Creator Store/Toolbox
 
 pcall(function()
-	if game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("PLHUB") then
-		game:GetService("Players").LocalPlayer.PlayerGui.PLHUB:Destroy()
-	end
+	local plgui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+	if plgui:FindFirstChild("PLHUB") then plgui.PLHUB:Destroy() end
 end)
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer and game.Players.LocalPlayer:FindFirstChild("PlayerGui")
-
+local Players = game:GetService("Players")
+local InsertService = game:GetService("InsertService")
 local TweenService = game:GetService("TweenService")
-local player = game.Players.LocalPlayer
+local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- GUI base
+-- Helper: try to load an asset id, return a Tool if found
+local function tryLoadToolFromAsset(assetId)
+	local ok, model = pcall(function() return InsertService:LoadAsset(assetId) end)
+	if not ok or not model then return nil end
+	-- Search for a Tool inside the model
+	for _, obj in ipairs(model:GetDescendants()) do
+		if obj:IsA("Tool") then
+			-- detach the tool from the temporary model and return it
+			obj.Parent = nil
+			-- destroy remaining temporary container (model)
+			pcall(function() model:Destroy() end)
+			return obj
+		end
+	end
+	-- If no Tool, maybe the model itself is a single model containing a Tool as direct child
+	for _, child in ipairs(model:GetChildren()) do
+		if child:IsA("Tool") then
+			child.Parent = nil
+			pcall(function() model:Destroy() end)
+			return child
+		end
+	end
+	-- nothing useful found
+	pcall(function() model:Destroy() end)
+	return nil
+end
+
+-- Lista de asset IDs plausibles de modelos "AK-47" encontrados en Creator Store / Toolbox.
+-- El script intentará cada ID hasta encontrar una Tool válida.
+local candidateAssetIds = {
+	79255353,  -- (ejemplo: AK47 pages encontrados en Creator Store). :contentReference[oaicite:1]{index=1}
+	72773560,
+	329330697,
+	688731098,
+	13553295,
+	432289870
+}
+-- UI: simple, oscuro y draggable por título (se concentra en Items -> AK-47)
 local ScreenGui = Instance.new("ScreenGui", playerGui)
 ScreenGui.Name = "PLHUB"
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Botón flotante
-local OpenButton = Instance.new("TextButton")
-OpenButton.Name = "OpenButton"
-OpenButton.Parent = ScreenGui
-OpenButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-OpenButton.Font = Enum.Font.GothamBold
-OpenButton.TextSize = 20
-OpenButton.Text = "PLH"
-OpenButton.Size = UDim2.new(0, 60, 0, 60)
-OpenButton.Position = UDim2.new(0.1, 0, 0.4, 0)
-OpenButton.BorderSizePixel = 0
-OpenButton.Active = true
-OpenButton.Draggable = true
-Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(1, 0)
-Instance.new("UIStroke", OpenButton).Color = Color3.fromRGB(80, 80, 80)
-
--- Marco principal
-local MainFrame = Instance.new("Frame")
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-MainFrame.Size = UDim2.new(0, 500, 0, 400)
-MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 520, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -260, 0.5, -210)
+MainFrame.BackgroundColor3 = Color3.fromRGB(8,8,8)
 MainFrame.Visible = false
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0,12)
 
--- Título (zona draggable)
-local TitleBar = Instance.new("TextLabel")
-TitleBar.Parent = MainFrame
-TitleBar.Size = UDim2.new(1, 0, 0, 40)
-TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-TitleBar.Text = "PL HUB"
+local TitleBar = Instance.new("TextLabel", MainFrame)
+TitleBar.Size = UDim2.new(1,0,0,40)
+TitleBar.Position = UDim2.new(0,0,0,0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(18,18,18)
+TitleBar.Text = "🔷 PL HUB"
 TitleBar.Font = Enum.Font.GothamBold
-TitleBar.TextSize = 24
-TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
-Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 12)
+TitleBar.TextSize = 20
+TitleBar.TextColor3 = Color3.fromRGB(160,230,255)
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0,12)
 
--- Hacer MainFrame arrastrable por el título
+-- Make main draggable via TitleBar
 do
 	local dragging, dragInput, dragStart, startPos
+	local UIS = game:GetService("UserInputService")
 	local function update(input)
 		local delta = input.Position - dragStart
 		MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
@@ -70,232 +88,130 @@ do
 			dragStart = input.Position
 			startPos = MainFrame.Position
 			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
+				if input.UserInputState == Enum.UserInputState.End then dragging = false end
 			end)
 		end
 	end)
 	TitleBar.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
-			dragInput = input
-		end
+		dragInput = input
 	end)
-	game:GetService("UserInputService").InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
+	UIS.InputChanged:Connect(function(input)
+		if dragging and input == dragInput and input.UserInputType == Enum.UserInputType.MouseMovement then
 			update(input)
 		end
 	end)
 end
 
--- Panel lateral
-local SideMenu = Instance.new("Frame")
-SideMenu.Parent = MainFrame
-SideMenu.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-SideMenu.Size = UDim2.new(0, 130, 1, -40)
-SideMenu.Position = UDim2.new(0, 0, 0, 40)
+-- Side menu + content simplified (we only need Items section for este cambio)
+local Side = Instance.new("Frame", MainFrame)
+Side.Size = UDim2.new(0,140,1,-60)
+Side.Position = UDim2.new(0,10,0,50)
+Side.BackgroundColor3 = Color3.fromRGB(18,18,18)
+Instance.new("UICorner", Side).CornerRadius = UDim.new(0,8)
 
-local SideLayout = Instance.new("UIListLayout", SideMenu)
-SideLayout.Padding = UDim.new(0, 10)
-SideLayout.SortOrder = Enum.SortOrder.LayoutOrder
-SideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+local Content = Instance.new("Frame", MainFrame)
+Content.Size = UDim2.new(1,-170,1,-70)
+Content.Position = UDim2.new(0,160,0,50)
+Content.BackgroundTransparency = 1
 
-local function CreateMenuButton(name)
-	local btn = Instance.new("TextButton")
-	btn.Parent = SideMenu
-	btn.Size = UDim2.new(1, -20, 0, 35)
-	btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-	btn.Text = name
-	btn.Font = Enum.Font.GothamBold
-	btn.TextColor3 = Color3.fromRGB(220, 220, 220)
-	btn.TextSize = 16
-	btn.AutoButtonColor = false
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+local ItemsBtn = Instance.new("TextButton", Side)
+ItemsBtn.Size = UDim2.new(1,-20,0,36)
+ItemsBtn.Position = UDim2.new(0,10,0,10)
+ItemsBtn.Text = "Items"
+ItemsBtn.Font = Enum.Font.GothamBold
+ItemsBtn.TextColor3 = Color3.fromRGB(220,220,220)
+ItemsBtn.BackgroundColor3 = Color3.fromRGB(28,28,28)
+Instance.new("UICorner", ItemsBtn).CornerRadius = UDim.new(0,6)
 
-	local stroke = Instance.new("UIStroke", btn)
-	stroke.Color = Color3.fromRGB(60, 60, 60)
+local ItemsFrame = Instance.new("ScrollingFrame", Content)
+ItemsFrame.Size = UDim2.new(1,0,1,0)
+ItemsFrame.CanvasSize = UDim2.new(0,0,0,0)
+ItemsFrame.ScrollBarThickness = 6
+ItemsFrame.Visible = true
+local UIList = Instance.new("UIListLayout", ItemsFrame)
+UIList.Padding = UDim.new(0,8)
 
-	btn.MouseEnter:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 45)}):Play()
-	end)
-	btn.MouseLeave:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
-	end)
-	return btn
-end
+-- AK-47 option (button)
+local akButton = Instance.new("TextButton", ItemsFrame)
+akButton.Size = UDim2.new(1,-10,0,36)
+akButton.Position = UDim2.new(0,5,0,10)
+akButton.Text = "AK-47 (Toolbox)"
+akButton.Font = Enum.Font.Gotham
+akButton.TextSize = 16
+akButton.TextColor3 = Color3.fromRGB(230,230,230)
+akButton.BackgroundColor3 = Color3.fromRGB(28,28,28)
+Instance.new("UICorner", akButton).CornerRadius = UDim.new(0,6)
 
--- Contenedor de contenido
-local ContentFrame = Instance.new("Frame")
-ContentFrame.Parent = MainFrame
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.Position = UDim2.new(0, 140, 0, 50)
-ContentFrame.Size = UDim2.new(1, -150, 1, -60)
+local statusLabel = Instance.new("TextLabel", Content)
+statusLabel.Size = UDim2.new(1,0,0,28)
+statusLabel.Position = UDim2.new(0,0,1,-28)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = ""
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 14
+statusLabel.TextColor3 = Color3.fromRGB(180,180,180)
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local function CreateSectionFrame()
-	local frame = Instance.new("ScrollingFrame")
-	frame.Parent = ContentFrame
-	frame.Size = UDim2.new(1, 0, 1, 0)
-	frame.BackgroundTransparency = 1
-	frame.ScrollBarThickness = 4
-	frame.Visible = false
-	local layout = Instance.new("UIListLayout", frame)
-	layout.Padding = UDim.new(0, 10)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	return frame
-end
-
-local function CreateOption(parent, name, callback)
-	local frame = Instance.new("Frame")
-	frame.Parent = parent
-	frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-	frame.Size = UDim2.new(1, 0, 0, 35)
-	frame.BorderSizePixel = 0
-	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
-
-	local label = Instance.new("TextLabel")
-	label.Parent = frame
-	label.BackgroundTransparency = 1
-	label.Text = name
-	label.Font = Enum.Font.Gotham
-	label.TextSize = 16
-	label.TextColor3 = Color3.fromRGB(230, 230, 230)
-	label.Position = UDim2.new(0, 10, 0, 0)
-	label.Size = UDim2.new(0.7, 0, 1, 0)
-	label.TextXAlignment = Enum.TextXAlignment.Left
-
-	local switch = Instance.new("TextButton")
-	switch.Parent = frame
-	switch.Size = UDim2.new(0, 50, 0, 22)
-	switch.Position = UDim2.new(1, -60, 0.5, -11)
-	switch.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-	switch.Text = ""
-	switch.AutoButtonColor = false
-	Instance.new("UICorner", switch).CornerRadius = UDim.new(1, 0)
-
-	local knob = Instance.new("Frame")
-	knob.Parent = switch
-	knob.Size = UDim2.new(0, 20, 0, 20)
-	knob.Position = UDim2.new(0, 2, 0.5, -10)
-	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
-
-	local on = false
-	switch.MouseButton1Click:Connect(function()
-		on = not on
-		local goal = {}
-		if on then
-			goal.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-			TweenService:Create(knob, TweenInfo.new(0.25), {Position = UDim2.new(1, -22, 0.5, -10)}):Play()
-		else
-			goal.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-			TweenService:Create(knob, TweenInfo.new(0.25), {Position = UDim2.new(0, 2, 0.5, -10)}):Play()
-		end
-		TweenService:Create(switch, TweenInfo.new(0.25), goal):Play()
-		callback(on)
-	end)
-end
-
--- Secciones
-local TeleportFrame = CreateSectionFrame()
-local MiscFrame = CreateSectionFrame()
-local ItemsFrame = CreateSectionFrame()
-
--- TELEPORTS
-local Teleports = {
-	["Zona de armas"] = Vector3.new(-928.858, 94.129, 2049.145),
-	["Zona Segura"] = Vector3.new(-56.212, 11.099, 1297.009),
-	["Muralla"] = Vector3.new(825.557, 125.840, 2072.784),
-	["Cafetería"] = Vector3.new(904.909, 99.990, 2269.678),
-	["Celdas"] = Vector3.new(914.927, 99.990, 2458.348),
-	["Yarda"] = Vector3.new(846.403, 98.190, 2545.063),
-	["Techo de la cárcel"] = Vector3.new(931.791, 118.990, 2371.300)
-}
-
-for name, pos in pairs(Teleports) do
-	CreateOption(TeleportFrame, name, function(on)
-		if on and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-			player.Character:MoveTo(pos)
-		end
-	end)
-end
-
-CreateOption(TeleportFrame, "Universal Teleport", function(on)
-	if on then
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/josheditor7-png/Teleport/refs/heads/main/Lines.lua"))()
+-- Function: attempt to fetch & equip AK tool from candidate asset ids
+local function obtainAndEquipAK()
+	statusLabel.Text = "Buscando AK-47 en Creator Store..."
+	-- try local stores first (ReplicatedStorage / Workspace)
+	local foundTool = nil
+	if game.ReplicatedStorage:FindFirstChild("AK-47") and game.ReplicatedStorage["AK-47"]:IsA("Tool") then
+		foundTool = game.ReplicatedStorage["AK-47"]:Clone()
 	end
-end)
-
--- ITEMS
-CreateOption(ItemsFrame, "AK-47", function(on)
-	if on then
-		local id = "AK-47"
-		local tool = nil
-
-		if game.ReplicatedStorage:FindFirstChild(id) then
-			tool = game.ReplicatedStorage[id]:Clone()
-		elseif workspace:FindFirstChild(id) then
-			tool = workspace[id]:Clone()
-		end
-
-		if not tool then
-			-- Crea un arma básica si no existe
-			tool = Instance.new("Tool")
-			tool.Name = id
-			local handle = Instance.new("Part")
-			handle.Name = "Handle"
-			handle.Size = Vector3.new(1, 1, 4)
-			handle.BrickColor = BrickColor.new("Really black")
-			handle.Parent = tool
-			tool.Parent = player.Backpack
-		else
-			tool.Parent = player.Backpack
-		end
-
+	if not foundTool and workspace:FindFirstChild("AK-47") and workspace["AK-47"]:IsA("Tool") then
+		foundTool = workspace["AK-47"]:Clone()
+	end
+	if foundTool then
+		foundTool.Parent = player.Backpack
 		task.wait(0.2)
-		player.Character.Humanoid:EquipTool(tool)
+		pcall(function() player.Character.Humanoid:EquipTool(foundTool) end)
+		statusLabel.Text = "AK-47 cargado desde almacenamiento local y equipado."
+		return true
 	end
-end)
 
--- MENU
-local Sections = {
-	["Teleports"] = TeleportFrame,
-	["Misc"] = MiscFrame,
-	["Items"] = ItemsFrame
-}
-
-local Buttons = {}
-for name in pairs(Sections) do
-	local btn = CreateMenuButton(name)
-	Buttons[name] = btn
-	btn.MouseButton1Click:Connect(function()
-		for n, frame in pairs(Sections) do
-			frame.Visible = (n == name)
-			if n == name then
-				TweenService:Create(Buttons[n], TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 170, 255)}):Play()
-			else
-				TweenService:Create(Buttons[n], TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
-			end
+	-- Try InsertService with candidate asset ids
+	for _, aid in ipairs(candidateAssetIds) do
+		statusLabel.Text = "Intentando cargar asset id "..tostring(aid).." ..."
+		local ok, tool = pcall(tryLoadToolFromAsset, aid)
+		if ok and tool then
+			-- parent to backpack and equip
+			tool.Parent = player.Backpack
+			task.wait(0.25)
+			pcall(function() player.Character.Humanoid:EquipTool(tool) end)
+			statusLabel.Text = "AK-47 cargado (asset "..tostring(aid)..") y equipado."
+			return true
 		end
-	end)
-end
-Sections["Teleports"].Visible = true
-TweenService:Create(Buttons["Teleports"], TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 170, 255)}):Play()
-
--- Abrir / Cerrar GUI
-local open = false
-OpenButton.MouseButton1Click:Connect(function()
-	open = not open
-	if open then
-		MainFrame.Visible = true
-		MainFrame.Size = UDim2.new(0, 0, 0, 0)
-		TweenService:Create(MainFrame, TweenInfo.new(0.4), {Size = UDim2.new(0, 500, 0, 400)}):Play()
-	else
-		local t = TweenService:Create(MainFrame, TweenInfo.new(0.4), {Size = UDim2.new(0, 0, 0, 0)})
-		t:Play()
-		t.Completed:Connect(function()
-			MainFrame.Visible = false
-		end)
+		task.wait(0.15)
 	end
+
+	-- If nothing found
+	statusLabel.Text = "No se pudo cargar AK-47 desde los assets probados. Revisa permisos o availability."
+	return false
+end
+
+akButton.MouseButton1Click:Connect(function()
+	akButton.BackgroundColor3 = Color3.fromRGB(10,120,200)
+	task.spawn(function()
+		pcall(obtainAndEquipAK)
+		TweenService:Create(akButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(28,28,28)}):Play()
+	end)
 end)
 
-print("✅ PL HUB v5 cargado correctamente con arrastre y AK-47 funcional.")
+-- Open button (floating)
+local OpenFloating = Instance.new("TextButton", playerGui)
+OpenFloating.Text = "PLH"
+OpenFloating.Size = UDim2.new(0,60,0,60)
+OpenFloating.Position = UDim2.new(0.07,0,0.4,0)
+OpenFloating.BackgroundColor3 = Color3.fromRGB(20,20,20)
+OpenFloating.TextColor3 = Color3.fromRGB(160,230,255)
+OpenFloating.Font = Enum.Font.GothamBold
+OpenFloating.TextSize = 20
+OpenFloating.AutoButtonColor = false
+Instance.new("UICorner", OpenFloating).CornerRadius = UDim.new(1,0)
+OpenFloating.MouseButton1Click:Connect(function()
+	MainFrame.Visible = not MainFrame.Visible
+end)
+
+print("PL HUB (AK loader) cargado. Intenta 'Items -> AK-47'.")
