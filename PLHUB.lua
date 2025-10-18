@@ -1,11 +1,10 @@
---// ⚡ PL HUB v3 - Clean + NoClip Added
--- By Josh & GPT-5
+--// ⚡ PL HUB v5 - con Boost + Jump (Hulk Jump)
+-- By Josh 
 
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 -- 🖥 GUI ROOT
 local gui = Instance.new("ScreenGui", playerGui)
@@ -119,23 +118,10 @@ local function openTeleports()
 			if hrp then hrp.CFrame = CFrame.new(info[2]) end
 		end)
 	end
-
-	local uniBtn = Instance.new("TextButton", contentHolder)
-	uniBtn.Size = UDim2.new(1, -20, 0, 35)
-	uniBtn.Position = UDim2.new(0, 10, 0, 40 + (#teleports) * 45)
-	uniBtn.BackgroundColor3 = Color3.fromRGB(60, 40, 80)
-	uniBtn.TextColor3 = Color3.new(1,1,1)
-	uniBtn.TextSize = 18
-	uniBtn.Font = Enum.Font.GothamBold
-	uniBtn.Text = "Universal Teleport"
-	Instance.new("UICorner", uniBtn).CornerRadius = UDim.new(0, 8)
-	uniBtn.MouseButton1Click:Connect(function()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/josheditor7-png/Teleport/refs/heads/main/Lines.lua"))()
-	end)
 end
 
 -------------------------------------------------------
--- 🎒 ITEMS SECTION
+-- 🎒 ITEMS SECTION (Mejorada)
 -------------------------------------------------------
 local function openItems()
 	clearContent()
@@ -154,41 +140,80 @@ local function openItems()
 	akBtn.MouseButton1Click:Connect(function()
 		local char = player.Character or player.CharacterAdded:Wait()
 		local hrp = char:WaitForChild("HumanoidRootPart")
-		local oldPos = hrp.CFrame
+
+		-- Guardar posición original
+		local oldCFrame = hrp.CFrame
+
+		-- Coordenadas del arma
 		local akPos = Vector3.new(-918.259,96.928,2051.592)
 		hrp.CFrame = CFrame.new(akPos)
-		task.wait(0.2)
-		for _, obj in pairs(workspace:GetChildren()) do
-			if obj:IsA("Tool") and obj.Name == "AK-47" then
-				firetouchinterest(hrp, obj.Handle, 0)
-				firetouchinterest(hrp, obj.Handle, 1)
+
+		-- Esperar a que cargue el área
+		task.wait(0.3)
+
+		-- Detectar cambio de inventario
+		local backpack = player:WaitForChild("Backpack")
+
+		local function getTools()
+			local tools = {}
+			for _, t in pairs(backpack:GetChildren()) do
+				if t:IsA("Tool") then
+					table.insert(tools, t.Name)
+				end
+			end
+			for _, t in pairs(char:GetChildren()) do
+				if t:IsA("Tool") then
+					table.insert(tools, t.Name)
+				end
+			end
+			return tools
+		end
+
+		local before = getTools()
+		local gotNewItem = false
+
+		local function checkChange()
+			local current = getTools()
+			if #current > #before then
+				gotNewItem = true
 			end
 		end
+
+		local backpackConn = backpack.ChildAdded:Connect(checkChange)
+		local charConn = char.ChildAdded:Connect(checkChange)
+
+		repeat task.wait(0.1) until gotNewItem
+
+		backpackConn:Disconnect()
+		charConn:Disconnect()
+
 		task.wait(0.2)
-		hrp.CFrame = oldPos
+		hrp.CFrame = oldCFrame
 	end)
 end
 
 -------------------------------------------------------
--- ⚙️ MISC SECTION (Base + NoClip)
+-- ⚙️ MISC SECTION (Base + NoClip + Boost + Jump)
 -------------------------------------------------------
 local function openMisc()
 	clearContent()
 	sectionTitle("MISC")
 
-	-- BASE
-	local BaseBtn = Instance.new("TextButton", contentHolder)
-	BaseBtn.Size = UDim2.new(1, -20, 0, 35)
-	BaseBtn.Position = UDim2.new(0, 10, 0, 45)
-	BaseBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	BaseBtn.TextColor3 = Color3.new(1, 1, 1)
-	BaseBtn.TextSize = 18
-	BaseBtn.Font = Enum.Font.GothamBold
-	BaseBtn.Text = "Base (OFF)"
-	Instance.new("UICorner", BaseBtn).CornerRadius = UDim.new(0, 8)
+	local function makeButton(y, text)
+		local b = Instance.new("TextButton", contentHolder)
+		b.Size = UDim2.new(1, -20, 0, 35)
+		b.Position = UDim2.new(0, 10, 0, y)
+		b.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		b.TextColor3 = Color3.new(1,1,1)
+		b.TextSize = 18
+		b.Font = Enum.Font.GothamBold
+		b.Text = text
+		Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
+		return b
+	end
 
+	local BaseBtn = makeButton(45, "Base (OFF)")
 	local baseEnabled, platform, conn = false, nil, nil
-
 	local function createBase(pos)
 		local p = Instance.new("Part")
 		p.Anchored = true
@@ -201,15 +226,12 @@ local function openMisc()
 		p.Parent = workspace
 		return p
 	end
-
 	BaseBtn.MouseButton1Click:Connect(function()
 		baseEnabled = not baseEnabled
 		BaseBtn.Text = baseEnabled and "Base (ON)" or "Base (OFF)"
-
 		if baseEnabled then
 			local char = player.Character or player.CharacterAdded:Wait()
 			local hrp = char:WaitForChild("HumanoidRootPart")
-
 			if conn then conn:Disconnect() end
 			conn = RunService.Heartbeat:Connect(function()
 				if not baseEnabled then return end
@@ -233,30 +255,16 @@ local function openMisc()
 		end
 	end)
 
-	-- NOCLIP
-	local NoClipBtn = Instance.new("TextButton", contentHolder)
-	NoClipBtn.Size = UDim2.new(1, -20, 0, 35)
-	NoClipBtn.Position = UDim2.new(0, 10, 0, 95)
-	NoClipBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	NoClipBtn.TextColor3 = Color3.new(1, 1, 1)
-	NoClipBtn.TextSize = 18
-	NoClipBtn.Font = Enum.Font.GothamBold
-	NoClipBtn.Text = "No Clip (OFF)"
-	Instance.new("UICorner", NoClipBtn).CornerRadius = UDim.new(0, 8)
-
-	local noclipEnabled = false
-	local noclipConn
-
+	local NoClipBtn = makeButton(95, "No Clip (OFF)")
+	local noclipEnabled, noclipConn = false, nil
 	NoClipBtn.MouseButton1Click:Connect(function()
 		noclipEnabled = not noclipEnabled
 		NoClipBtn.Text = noclipEnabled and "No Clip (ON)" or "No Clip (OFF)"
-
 		if noclipEnabled then
 			local char = player.Character or player.CharacterAdded:Wait()
 			noclipConn = RunService.Stepped:Connect(function()
 				for _, part in pairs(char:GetDescendants()) do
 					if part:IsA("BasePart") and part.CanCollide then
-						-- el suelo debe seguir sólido
 						if not string.find(string.lower(part.Name), "floor") then
 							part.CanCollide = false
 						end
@@ -266,12 +274,38 @@ local function openMisc()
 		else
 			if noclipConn then noclipConn:Disconnect() end
 			for _, part in pairs(player.Character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = true
-				end
+				if part:IsA("BasePart") then part.CanCollide = true end
 			end
 		end
 	end)
+
+	local BoostBtn = makeButton(145, "Boost (OFF)")
+	local boostEnabled = false
+	local normalSpeed, boostSpeed = 16, 100
+	BoostBtn.MouseButton1Click:Connect(function()
+		boostEnabled = not boostEnabled
+		BoostBtn.Text = boostEnabled and "Boost (ON)" or "Boost (OFF)"
+		local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if hum then hum.WalkSpeed = boostEnabled and boostSpeed or normalSpeed end
+	end)
+
+	local JumpBtn = makeButton(195, "Jump (OFF)")
+	local jumpEnabled = false
+	local normalJump, hulkJump = 50, 250
+	JumpBtn.MouseButton1Click:Connect(function()
+		jumpEnabled = not jumpEnabled
+		JumpBtn.Text = jumpEnabled and "Jump (ON)" or "Jump (OFF)"
+		local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if hum then hum.JumpPower = jumpEnabled and hulkJump or normalJump end
+	end)
+end
+
+-------------------------------------------------------
+-- 👁 VISUALS SECTION (NEW)
+-------------------------------------------------------
+local function openVisuals()
+	clearContent()
+	sectionTitle("VISUALS")
 end
 
 -------------------------------------------------------
@@ -281,6 +315,7 @@ local sections = {
 	{"Teleports", openTeleports},
 	{"Items", openItems},
 	{"Misc", openMisc},
+	{"Visuals", openVisuals},
 }
 
 for i, sec in ipairs(sections) do
@@ -293,7 +328,6 @@ for i, sec in ipairs(sections) do
 	btn.Font = Enum.Font.GothamBold
 	btn.Text = sec[1]
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-
 	btn.MouseButton1Click:Connect(function()
 		for _, b in pairs(menu:GetChildren()) do
 			if b:IsA("TextButton") then
@@ -323,3 +357,4 @@ floatBtn.MouseButton1Click:Connect(function()
 		main.Visible = false
 	end
 end)
+
