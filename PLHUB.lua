@@ -1,217 +1,325 @@
--- PL HUB vAK | Drag + Dark UI + Toolbox AK-47 loader
--- by ChatGPT for Josh
--- Nota: usa InsertService para intentar cargar modelos AK-47 del Creator Store/Toolbox
+--// ⚡ PL HUB v3 - Clean + NoClip Added
+-- By Josh & GPT-5
 
-pcall(function()
-	local plgui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-	if plgui:FindFirstChild("PLHUB") then plgui.PLHUB:Destroy() end
-end)
-
-repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer and game.Players.LocalPlayer:FindFirstChild("PlayerGui")
-local Players = game:GetService("Players")
-local InsertService = game:GetService("InsertService")
-local TweenService = game:GetService("TweenService")
-local player = Players.LocalPlayer
+local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
--- Helper: try to load an asset id, return a Tool if found
-local function tryLoadToolFromAsset(assetId)
-	local ok, model = pcall(function() return InsertService:LoadAsset(assetId) end)
-	if not ok or not model then return nil end
-	-- Search for a Tool inside the model
-	for _, obj in ipairs(model:GetDescendants()) do
-		if obj:IsA("Tool") then
-			-- detach the tool from the temporary model and return it
-			obj.Parent = nil
-			-- destroy remaining temporary container (model)
-			pcall(function() model:Destroy() end)
-			return obj
-		end
+-- 🖥 GUI ROOT
+local gui = Instance.new("ScreenGui", playerGui)
+gui.Name = "PLHUB"
+
+-- 🟢 Floating Button
+local floatBtn = Instance.new("TextButton", gui)
+floatBtn.Size = UDim2.new(0, 60, 0, 60)
+floatBtn.Position = UDim2.new(0.08, 0, 0.7, 0)
+floatBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+floatBtn.Text = "PLH"
+floatBtn.TextColor3 = Color3.fromRGB(0, 255, 180)
+floatBtn.Font = Enum.Font.GothamBold
+floatBtn.TextSize = 22
+floatBtn.Active, floatBtn.Draggable = true, true
+Instance.new("UICorner", floatBtn).CornerRadius = UDim.new(1, 0)
+local floatStroke = Instance.new("UIStroke", floatBtn)
+floatStroke.Color = Color3.fromRGB(0, 255, 180)
+
+-- 🧱 Main Window
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 600, 0, 380)
+main.Position = UDim2.new(0.35, 0, 0.3, 0)
+main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+main.Visible = false
+main.Active, main.Draggable = true, true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
+Instance.new("UIStroke", main).Color = Color3.fromRGB(0, 255, 200)
+
+-- 🔹 Title Bar
+local titleBar = Instance.new("Frame", main)
+titleBar.Size = UDim2.new(1, 0, 0, 45)
+titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 14)
+
+local title = Instance.new("TextLabel", titleBar)
+title.Size = UDim2.new(1, 0, 1, 0)
+title.BackgroundTransparency = 1
+title.Text = "⚡ PL HUB"
+title.TextColor3 = Color3.fromRGB(0, 255, 200)
+title.TextSize = 22
+title.Font = Enum.Font.GothamBold
+
+-- 📜 Left Menu
+local menu = Instance.new("Frame", main)
+menu.Size = UDim2.new(0, 150, 1, -45)
+menu.Position = UDim2.new(0, 0, 0, 45)
+menu.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Instance.new("UICorner", menu).CornerRadius = UDim.new(0, 14)
+
+-- 📂 Scrollable Content
+local contentHolder = Instance.new("ScrollingFrame", main)
+contentHolder.Size = UDim2.new(1, -170, 1, -60)
+contentHolder.Position = UDim2.new(0, 160, 0, 50)
+contentHolder.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+contentHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
+contentHolder.ScrollBarThickness = 6
+contentHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
+contentHolder.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 200)
+Instance.new("UICorner", contentHolder).CornerRadius = UDim.new(0, 14)
+
+-- Utility: Clear content
+local function clearContent()
+	for _, v in pairs(contentHolder:GetChildren()) do
+		if not v:IsA("UICorner") then v:Destroy() end
 	end
-	-- If no Tool, maybe the model itself is a single model containing a Tool as direct child
-	for _, child in ipairs(model:GetChildren()) do
-		if child:IsA("Tool") then
-			child.Parent = nil
-			pcall(function() model:Destroy() end)
-			return child
-		end
-	end
-	-- nothing useful found
-	pcall(function() model:Destroy() end)
-	return nil
 end
 
--- Lista de asset IDs plausibles de modelos "AK-47" encontrados en Creator Store / Toolbox.
--- El script intentará cada ID hasta encontrar una Tool válida.
-local candidateAssetIds = {
-	79255353,  -- (ejemplo: AK47 pages encontrados en Creator Store). :contentReference[oaicite:1]{index=1}
-	72773560,
-	329330697,
-	688731098,
-	13553295,
-	432289870
-}
--- UI: simple, oscuro y draggable por título (se concentra en Items -> AK-47)
-local ScreenGui = Instance.new("ScreenGui", playerGui)
-ScreenGui.Name = "PLHUB"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Utility: Section title
+local function sectionTitle(name)
+	local lbl = Instance.new("TextLabel", contentHolder)
+	lbl.Size = UDim2.new(1, -20, 0, 35)
+	lbl.Position = UDim2.new(0, 10, 0, 5)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = name
+	lbl.TextColor3 = Color3.new(1,1,1)
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 20
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+end
 
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 520, 0, 420)
-MainFrame.Position = UDim2.new(0.5, -260, 0.5, -210)
-MainFrame.BackgroundColor3 = Color3.fromRGB(8,8,8)
-MainFrame.Visible = false
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0,12)
+-------------------------------------------------------
+-- 🗺 TELEPORT SECTION
+-------------------------------------------------------
+local function openTeleports()
+	clearContent()
+	sectionTitle("TELEPORTS")
 
-local TitleBar = Instance.new("TextLabel", MainFrame)
-TitleBar.Size = UDim2.new(1,0,0,40)
-TitleBar.Position = UDim2.new(0,0,0,0)
-TitleBar.BackgroundColor3 = Color3.fromRGB(18,18,18)
-TitleBar.Text = "🔷 PL HUB"
-TitleBar.Font = Enum.Font.GothamBold
-TitleBar.TextSize = 20
-TitleBar.TextColor3 = Color3.fromRGB(160,230,255)
-Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0,12)
+	local teleports = {
+		{"Zona de armas", Vector3.new(-928.858,94.129,2049.145)},
+		{"Zona Segura", Vector3.new(-56.212,11.099,1297.009)},
+		{"Muralla", Vector3.new(825.557,125.840,2072.784)},
+		{"Cafetería", Vector3.new(904.909,99.990,2269.678)},
+		{"Celdas", Vector3.new(914.927,99.990,2458.348)},
+		{"Yarda", Vector3.new(846.403,98.190,2545.063)},
+		{"Techo de la cárcel", Vector3.new(931.791,118.990,2371.300)},
+	}
 
--- Make main draggable via TitleBar
-do
-	local dragging, dragInput, dragStart, startPos
-	local UIS = game:GetService("UserInputService")
-	local function update(input)
-		local delta = input.Position - dragStart
-		MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	for i, info in ipairs(teleports) do
+		local btn = Instance.new("TextButton", contentHolder)
+		btn.Size = UDim2.new(1, -20, 0, 35)
+		btn.Position = UDim2.new(0, 10, 0, 40 + (i - 1) * 45)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		btn.Text = info[1]
+		btn.TextColor3 = Color3.new(1,1,1)
+		btn.TextSize = 18
+		btn.Font = Enum.Font.GothamBold
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+		btn.MouseButton1Click:Connect(function()
+			local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then hrp.CFrame = CFrame.new(info[2]) end
+		end)
 	end
-	TitleBar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			dragStart = input.Position
-			startPos = MainFrame.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then dragging = false end
-			end)
-		end
-	end)
-	TitleBar.InputChanged:Connect(function(input)
-		dragInput = input
-	end)
-	UIS.InputChanged:Connect(function(input)
-		if dragging and input == dragInput and input.UserInputType == Enum.UserInputType.MouseMovement then
-			update(input)
-		end
+
+	local uniBtn = Instance.new("TextButton", contentHolder)
+	uniBtn.Size = UDim2.new(1, -20, 0, 35)
+	uniBtn.Position = UDim2.new(0, 10, 0, 40 + (#teleports) * 45)
+	uniBtn.BackgroundColor3 = Color3.fromRGB(60, 40, 80)
+	uniBtn.TextColor3 = Color3.new(1,1,1)
+	uniBtn.TextSize = 18
+	uniBtn.Font = Enum.Font.GothamBold
+	uniBtn.Text = "Universal Teleport"
+	Instance.new("UICorner", uniBtn).CornerRadius = UDim.new(0, 8)
+	uniBtn.MouseButton1Click:Connect(function()
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/josheditor7-png/Teleport/refs/heads/main/Lines.lua"))()
 	end)
 end
 
--- Side menu + content simplified (we only need Items section for este cambio)
-local Side = Instance.new("Frame", MainFrame)
-Side.Size = UDim2.new(0,140,1,-60)
-Side.Position = UDim2.new(0,10,0,50)
-Side.BackgroundColor3 = Color3.fromRGB(18,18,18)
-Instance.new("UICorner", Side).CornerRadius = UDim.new(0,8)
+-------------------------------------------------------
+-- 🎒 ITEMS SECTION
+-------------------------------------------------------
+local function openItems()
+	clearContent()
+	sectionTitle("ITEMS")
 
-local Content = Instance.new("Frame", MainFrame)
-Content.Size = UDim2.new(1,-170,1,-70)
-Content.Position = UDim2.new(0,160,0,50)
-Content.BackgroundTransparency = 1
+	local akBtn = Instance.new("TextButton", contentHolder)
+	akBtn.Size = UDim2.new(1, -20, 0, 35)
+	akBtn.Position = UDim2.new(0, 10, 0, 45)
+	akBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	akBtn.Text = "AK-47"
+	akBtn.TextColor3 = Color3.new(1,1,1)
+	akBtn.TextSize = 18
+	akBtn.Font = Enum.Font.GothamBold
+	Instance.new("UICorner", akBtn).CornerRadius = UDim.new(0,8)
 
-local ItemsBtn = Instance.new("TextButton", Side)
-ItemsBtn.Size = UDim2.new(1,-20,0,36)
-ItemsBtn.Position = UDim2.new(0,10,0,10)
-ItemsBtn.Text = "Items"
-ItemsBtn.Font = Enum.Font.GothamBold
-ItemsBtn.TextColor3 = Color3.fromRGB(220,220,220)
-ItemsBtn.BackgroundColor3 = Color3.fromRGB(28,28,28)
-Instance.new("UICorner", ItemsBtn).CornerRadius = UDim.new(0,6)
-
-local ItemsFrame = Instance.new("ScrollingFrame", Content)
-ItemsFrame.Size = UDim2.new(1,0,1,0)
-ItemsFrame.CanvasSize = UDim2.new(0,0,0,0)
-ItemsFrame.ScrollBarThickness = 6
-ItemsFrame.Visible = true
-local UIList = Instance.new("UIListLayout", ItemsFrame)
-UIList.Padding = UDim.new(0,8)
-
--- AK-47 option (button)
-local akButton = Instance.new("TextButton", ItemsFrame)
-akButton.Size = UDim2.new(1,-10,0,36)
-akButton.Position = UDim2.new(0,5,0,10)
-akButton.Text = "AK-47 (Toolbox)"
-akButton.Font = Enum.Font.Gotham
-akButton.TextSize = 16
-akButton.TextColor3 = Color3.fromRGB(230,230,230)
-akButton.BackgroundColor3 = Color3.fromRGB(28,28,28)
-Instance.new("UICorner", akButton).CornerRadius = UDim.new(0,6)
-
-local statusLabel = Instance.new("TextLabel", Content)
-statusLabel.Size = UDim2.new(1,0,0,28)
-statusLabel.Position = UDim2.new(0,0,1,-28)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = ""
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextSize = 14
-statusLabel.TextColor3 = Color3.fromRGB(180,180,180)
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
--- Function: attempt to fetch & equip AK tool from candidate asset ids
-local function obtainAndEquipAK()
-	statusLabel.Text = "Buscando AK-47 en Creator Store..."
-	-- try local stores first (ReplicatedStorage / Workspace)
-	local foundTool = nil
-	if game.ReplicatedStorage:FindFirstChild("AK-47") and game.ReplicatedStorage["AK-47"]:IsA("Tool") then
-		foundTool = game.ReplicatedStorage["AK-47"]:Clone()
-	end
-	if not foundTool and workspace:FindFirstChild("AK-47") and workspace["AK-47"]:IsA("Tool") then
-		foundTool = workspace["AK-47"]:Clone()
-	end
-	if foundTool then
-		foundTool.Parent = player.Backpack
+	akBtn.MouseButton1Click:Connect(function()
+		local char = player.Character or player.CharacterAdded:Wait()
+		local hrp = char:WaitForChild("HumanoidRootPart")
+		local oldPos = hrp.CFrame
+		local akPos = Vector3.new(-918.259,96.928,2051.592)
+		hrp.CFrame = CFrame.new(akPos)
 		task.wait(0.2)
-		pcall(function() player.Character.Humanoid:EquipTool(foundTool) end)
-		statusLabel.Text = "AK-47 cargado desde almacenamiento local y equipado."
-		return true
-	end
-
-	-- Try InsertService with candidate asset ids
-	for _, aid in ipairs(candidateAssetIds) do
-		statusLabel.Text = "Intentando cargar asset id "..tostring(aid).." ..."
-		local ok, tool = pcall(tryLoadToolFromAsset, aid)
-		if ok and tool then
-			-- parent to backpack and equip
-			tool.Parent = player.Backpack
-			task.wait(0.25)
-			pcall(function() player.Character.Humanoid:EquipTool(tool) end)
-			statusLabel.Text = "AK-47 cargado (asset "..tostring(aid)..") y equipado."
-			return true
+		for _, obj in pairs(workspace:GetChildren()) do
+			if obj:IsA("Tool") and obj.Name == "AK-47" then
+				firetouchinterest(hrp, obj.Handle, 0)
+				firetouchinterest(hrp, obj.Handle, 1)
+			end
 		end
-		task.wait(0.15)
-	end
-
-	-- If nothing found
-	statusLabel.Text = "No se pudo cargar AK-47 desde los assets probados. Revisa permisos o availability."
-	return false
+		task.wait(0.2)
+		hrp.CFrame = oldPos
+	end)
 end
 
-akButton.MouseButton1Click:Connect(function()
-	akButton.BackgroundColor3 = Color3.fromRGB(10,120,200)
-	task.spawn(function()
-		pcall(obtainAndEquipAK)
-		TweenService:Create(akButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(28,28,28)}):Play()
+-------------------------------------------------------
+-- ⚙️ MISC SECTION (Base + NoClip)
+-------------------------------------------------------
+local function openMisc()
+	clearContent()
+	sectionTitle("MISC")
+
+	-- BASE
+	local BaseBtn = Instance.new("TextButton", contentHolder)
+	BaseBtn.Size = UDim2.new(1, -20, 0, 35)
+	BaseBtn.Position = UDim2.new(0, 10, 0, 45)
+	BaseBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	BaseBtn.TextColor3 = Color3.new(1, 1, 1)
+	BaseBtn.TextSize = 18
+	BaseBtn.Font = Enum.Font.GothamBold
+	BaseBtn.Text = "Base (OFF)"
+	Instance.new("UICorner", BaseBtn).CornerRadius = UDim.new(0, 8)
+
+	local baseEnabled, platform, conn = false, nil, nil
+
+	local function createBase(pos)
+		local p = Instance.new("Part")
+		p.Anchored = true
+		p.CanCollide = true
+		p.Size = Vector3.new(12, 1, 12)
+		p.Transparency = 0.5
+		p.Color = Color3.fromRGB(0, 170, 255)
+		p.Material = Enum.Material.ForceField
+		p.CFrame = CFrame.new(pos)
+		p.Parent = workspace
+		return p
+	end
+
+	BaseBtn.MouseButton1Click:Connect(function()
+		baseEnabled = not baseEnabled
+		BaseBtn.Text = baseEnabled and "Base (ON)" or "Base (OFF)"
+
+		if baseEnabled then
+			local char = player.Character or player.CharacterAdded:Wait()
+			local hrp = char:WaitForChild("HumanoidRootPart")
+
+			if conn then conn:Disconnect() end
+			conn = RunService.Heartbeat:Connect(function()
+				if not baseEnabled then return end
+				local under = hrp.Position - Vector3.new(0, 4, 0)
+				if not platform then
+					platform = createBase(under)
+				else
+					local dist = (platform.Position - under).Magnitude
+					if dist > 5 then
+						platform:Destroy()
+						platform = createBase(under)
+					else
+						platform.Position = under
+					end
+				end
+			end)
+		else
+			if conn then conn:Disconnect() end
+			if platform then platform:Destroy() end
+			platform = nil
+		end
 	end)
-end)
 
--- Open button (floating)
-local OpenFloating = Instance.new("TextButton", playerGui)
-OpenFloating.Text = "PLH"
-OpenFloating.Size = UDim2.new(0,60,0,60)
-OpenFloating.Position = UDim2.new(0.07,0,0.4,0)
-OpenFloating.BackgroundColor3 = Color3.fromRGB(20,20,20)
-OpenFloating.TextColor3 = Color3.fromRGB(160,230,255)
-OpenFloating.Font = Enum.Font.GothamBold
-OpenFloating.TextSize = 20
-OpenFloating.AutoButtonColor = false
-Instance.new("UICorner", OpenFloating).CornerRadius = UDim.new(1,0)
-OpenFloating.MouseButton1Click:Connect(function()
-	MainFrame.Visible = not MainFrame.Visible
-end)
+	-- NOCLIP
+	local NoClipBtn = Instance.new("TextButton", contentHolder)
+	NoClipBtn.Size = UDim2.new(1, -20, 0, 35)
+	NoClipBtn.Position = UDim2.new(0, 10, 0, 95)
+	NoClipBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	NoClipBtn.TextColor3 = Color3.new(1, 1, 1)
+	NoClipBtn.TextSize = 18
+	NoClipBtn.Font = Enum.Font.GothamBold
+	NoClipBtn.Text = "No Clip (OFF)"
+	Instance.new("UICorner", NoClipBtn).CornerRadius = UDim.new(0, 8)
 
-print("PL HUB (AK loader) cargado. Intenta 'Items -> AK-47'.")
+	local noclipEnabled = false
+	local noclipConn
+
+	NoClipBtn.MouseButton1Click:Connect(function()
+		noclipEnabled = not noclipEnabled
+		NoClipBtn.Text = noclipEnabled and "No Clip (ON)" or "No Clip (OFF)"
+
+		if noclipEnabled then
+			local char = player.Character or player.CharacterAdded:Wait()
+			noclipConn = RunService.Stepped:Connect(function()
+				for _, part in pairs(char:GetDescendants()) do
+					if part:IsA("BasePart") and part.CanCollide then
+						-- el suelo debe seguir sólido
+						if not string.find(string.lower(part.Name), "floor") then
+							part.CanCollide = false
+						end
+					end
+				end
+			end)
+		else
+			if noclipConn then noclipConn:Disconnect() end
+			for _, part in pairs(player.Character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = true
+				end
+			end
+		end
+	end)
+end
+
+-------------------------------------------------------
+-- MENU BUTTONS
+-------------------------------------------------------
+local sections = {
+	{"Teleports", openTeleports},
+	{"Items", openItems},
+	{"Misc", openMisc},
+}
+
+for i, sec in ipairs(sections) do
+	local btn = Instance.new("TextButton", menu)
+	btn.Size = UDim2.new(1, -20, 0, 40)
+	btn.Position = UDim2.new(0, 10, 0, (i - 1) * 50 + 15)
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+	btn.TextSize = 18
+	btn.Font = Enum.Font.GothamBold
+	btn.Text = sec[1]
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+	btn.MouseButton1Click:Connect(function()
+		for _, b in pairs(menu:GetChildren()) do
+			if b:IsA("TextButton") then
+				b.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+				b.TextColor3 = Color3.fromRGB(200, 200, 200)
+			end
+		end
+		btn.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
+		btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+		sec[2]()
+	end)
+end
+
+-------------------------------------------------------
+-- OPEN/CLOSE ANIMATION
+-------------------------------------------------------
+local open = false
+floatBtn.MouseButton1Click:Connect(function()
+	open = not open
+	if open then
+		main.Visible = true
+		main.Size = UDim2.new(0, 0, 0, 0)
+		TweenService:Create(main, TweenInfo.new(0.3), {Size = UDim2.new(0, 600, 0, 380)}):Play()
+	else
+		TweenService:Create(main, TweenInfo.new(0.3), {Size = UDim2.new(0, 0, 0, 0)}):Play()
+		task.wait(0.3)
+		main.Visible = false
+	end
+end)
